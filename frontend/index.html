@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LogBERT++ - Log Anomaly Detection</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen text-white">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <header class="text-center mb-12">
+            <h1 class="text-5xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                LogBERT++ Anomaly Detector
+            </h1>
+            <p class="text-xl text-gray-300">AI-Powered Log Analysis</p>
+        </header>
+
+        <div class="grid lg:grid-cols-2 gap-8">
+            <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
+                <h2 class="text-2xl font-bold mb-4">Log Input</h2>
+                <textarea id="logInput" rows="12" class="w-full bg-slate-800/50 border border-slate-600 rounded-lg p-3 text-white font-mono text-sm" placeholder="ERROR: Connection timeout
+INFO: User login successful
+WARN: High memory usage"></textarea>
+                <div class="mt-4">
+                    <label class="block text-sm mb-2">Window Size</label>
+                    <input type="number" id="windowSize" value="150" class="w-full bg-slate-800/50 border border-slate-600 rounded-lg p-3 text-white">
+                </div>
+                <div class="flex gap-4 mt-4">
+                    <button onclick="analyze()" class="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 rounded-lg font-bold">
+                        Analyze Logs
+                    </button>
+                    <button onclick="clear()" class="px-6 py-3 bg-slate-700 rounded-lg font-bold">Clear</button>
+                </div>
+                <button onclick="loadSample()" class="mt-4 text-sm text-blue-400 underline">Load Sample</button>
+            </div>
+
+            <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
+                <h2 class="text-2xl font-bold mb-4">Results</h2>
+                <div id="results" class="text-gray-400">No analysis yet</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = 'http://localhost:8000';
+        
+        async function analyze() {
+            const logs = document.getElementById('logInput').value.split('\n').filter(l => l.trim());
+            const windowSize = parseInt(document.getElementById('windowSize').value);
+            
+            if (!logs.length) {
+                alert('Please enter logs');
+                return;
+            }
+            
+            try {
+                const res = await fetch(API + '/predict', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({logs, window_size: windowSize})
+                });
+                const data = await res.json();
+                showResults(data);
+            } catch (e) {
+                document.getElementById('results').innerHTML = '<div class="text-red-400">Error: ' + e.message + '</div>';
+            }
+        }
+        
+        function showResults(data) {
+            const color = data.is_anomaly ? 'red' : 'green';
+            document.getElementById('results').innerHTML = `
+                <div class="bg-${color}-500/20 border border-${color}-500 rounded-lg p-6">
+                    <div class="text-3xl mb-2">${data.is_anomaly ? '⚠️' : '✅'}</div>
+                    <h3 class="text-2xl font-bold mb-4">${data.is_anomaly ? 'Anomaly Detected' : 'Normal'}</h3>
+                    <div class="space-y-2">
+                        <div>Score: <span class="font-bold">${data.anomaly_score.toFixed(4)}</span></div>
+                        <div>Confidence: <span class="font-bold">${(data.confidence * 100).toFixed(1)}%</span></div>
+                        <div>Logs: <span class="font-bold">${data.num_logs}</span></div>
+                    </div>
+                    <div class="mt-4 bg-slate-700 rounded-full h-4">
+                        <div class="bg-gradient-to-r from-green-500 to-red-500 h-full rounded-full" style="width: ${data.anomaly_score * 100}%"></div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function loadSample() {
+            document.getElementById('logInput').value = `ERROR: Connection timeout at 192.168.1.1
+INFO: User authentication successful
+WARN: Memory usage at 85%
+ERROR: Database query failed
+INFO: Request processed in 45ms`;
+        }
+    </script>
+</body>
+</html>
